@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Chat Rooms</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-pink-50">
+    <%- include('partials/navbar') %>
+
+        <div class="container mx-auto p-8">
+            <h2 class="text-2xl font-bold text-pink-600 mb-4">
+                Your Chat Groups: <%= rooms.length %>
+            </h2>
+
+            <ul class="space-y-4">
+                <% rooms.forEach(room=> { %>
+                    <li class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
+                        <div>
+                            <a href="/rooms/<%= room.room_id %>" class="text-pink-600 font-semibold">
+                                <%= room.name %>
+                            </a>
+                            <p class="text-gray-500 text-sm">
+                                <%= room.last_message || "No messages yet" %>
+                                <span class="text-gray-400 text-xs">
+                                    <%= room.last_message_time ? new Date(room.last_message_time).toLocaleString("en-US", {
+                                        timeZone: "America/Vancouver" }) : "" %>
+                                </span>
+                            </p>
+                            
+                        </div>                       
+
+                        <!-- ✅ 안 읽은 메시지 개수 표시 -->
+                        <% if (room.unread_messages> 0) { %>
+                            <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                <%= room.unread_messages %>
+                            </span>
+                            <% } %>
+                    </li>
+                    <% }); %>
+            </ul>
+
+            <a href="/rooms/new" class="block mt-6 bg-pink-500 text-white py-2 rounded-lg text-center">
+                Create New Group
+            </a>
+        </div>
+</body>
+
+</html>

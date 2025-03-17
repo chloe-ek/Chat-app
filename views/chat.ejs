@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>
+        <%= roomName %> - Chat
+    </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-pink-50 flex flex-col h-screen">
+
+    <!-- 상단 네비게이션 -->
+    <nav class="bg-white shadow-md p-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-pink-600">
+            <%= roomName %>
+        </h2>
+        <div>
+            <button id="inviteBtn" class="bg-pink-500 text-white px-3 py-2 rounded-lg mr-3">
+                ➕ Invite Users
+            </button>
+            <a href="/rooms" class="text-pink-500">Back</a>
+        </div>
+    </nav>
+
+    <!-- ✅ 초대할 유저 선택하는 모달 창 -->
+    <div id="inviteModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-1/3">
+            <h3 class="text-lg font-bold mb-4">Invite Users to <%= roomName %>
+            </h3>
+    
+            <!-- 유저 목록 -->
+            <ul>
+                <% availableUsers.forEach(user=> { %>
+                    <li class="flex justify-between items-center p-2 border-b">
+                        <span>
+                            <%= user.username %>
+                        </span>
+                        <button class="inviteUserBtn bg-green-500 text-white px-3 py-1 rounded"
+                            data-user-id="<%= user.user_id %>">Invite</button>
+                    </li>
+                    <% }); %>
+            </ul>
+    
+            <!-- 닫기 버튼 -->
+            <button id="closeInviteModal" class="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg">
+                Close
+            </button>
+        </div>
+    </div>
+    
+
+    <!-- 채팅 메시지 영역 -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-6">
+        <% let unreadShown=false; %>
+            <% messages.forEach(msg=> { %>
+    
+                <% if (!unreadShown && msg.message_id> lastReadMessageId) { %>
+                    <div class="text-center text-gray-500 text-sm">------- Unread -------</div>
+                    <% unreadShown=true; %>
+                        <% } %>
+    
+                            <!-- ✅ 메시지 박스 -->
+                            <div class="relative flex flex-col <%= msg.isOwn ? 'items-end' : 'items-start' %>">
+                                <% if (!msg.isOwn) { %>
+                                    <!-- ✅ 본인이 보낸 메시지가 아닌 경우, 이름을 말풍선 왼쪽 위에 표시 -->
+                                    <span class="text-xs text-gray-500 font-semibold mb-1">
+                                        <%= msg.username %>
+                                    </span>
+                                    <% } %>
+    
+                                        <div
+                                            class="relative <%= msg.isOwn ? 'bg-pink-500 text-white' : 'bg-gray-200' %> px-4 py-2 rounded-lg max-w-xs">
+                                            <p>
+                                                <%= msg.text %>
+                                            </p>
+                                            <p class="text-xs text-gray-400 text-right mt-1">
+                                                <%= msg.time ? msg.time : "Invalid Date" %>
+                                            </p>
+    
+                                            <!-- ✅ 반응 및 이모지 추가 버튼 -->
+                                            <div class="flex items-center mt-1 space-x-2 absolute -bottom-7 right-1">
+                                                <% if (msg.reactions && msg.reactions.length> 0) { %>
+                                                    <span
+                                                        class="bg-white px-2 py-1 rounded-full shadow flex items-center space-x-1 text-lg text-gray-500">
+                                                        <% msg.reactions.forEach(reaction=> { %>
+                                                            <span class="flex items-center space-x-1">
+                                                                <%= reaction.emoji %>
+                                                                    <% if (reaction.count> 1) { %>
+                                                                        <span class="text-sm font-semibold">
+                                                                            <%= reaction.count %>
+                                                                        </span>
+                                                                        <% } %>
+                                                            </span>
+                                                            <% }); %>
+                                                    </span>
+                                                    <% } %>
+                                                        <button
+                                                            class="emoji-btn text-gray-500 text-sm p-1 rounded-full bg-white shadow-md"
+                                                            data-message-id="<%= msg.message_id %>">➕</button>
+                                            </div>
+                                        </div>
+                            </div>
+                            <% }); %>
+    </div>
+
+    
+
+    
+
+    <!-- 메시지 입력 영역 -->
+    <form action="/rooms/<%= roomId %>/send" method="POST" class="p-4 bg-white flex items-center">
+        <input type="text" name="message" placeholder="Type a message" class="flex-1 p-2 border rounded-lg">
+        <button type="submit" class="ml-2 bg-pink-500 text-white p-2 rounded-lg">Send</button>
+    </form>
+
+    <!-- ✅ 이모지 선택 UI (기본적으로 숨겨져 있음) -->
+    <div id="emoji-picker" class="hidden fixed bg-white p-2 shadow-md rounded-lg">
+        <% availableEmojis.forEach(emoji=> { %>
+            <button class="emoji-option text-2xl p-1" data-emoji="<%= emoji.emoji_code %>">
+                <%= emoji.emoji_code %>
+            </button>
+            <% }); %>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const inviteBtn = document.getElementById("inviteBtn");
+            const inviteModal = document.getElementById("inviteModal");
+            const closeInviteModal = document.getElementById("closeInviteModal");
+            const inviteUserBtns = document.querySelectorAll(".inviteUserBtn");
+            const emojiButtons = document.querySelectorAll(".emoji-btn");
+            const emojiPicker = document.getElementById("emoji-picker");
+
+            if (inviteBtn && inviteModal && closeInviteModal) {
+                // ✅ 초대 모달 열기
+                inviteBtn.addEventListener("click", () => {
+                    inviteModal.classList.remove("hidden");
+                });
+
+                // ✅ 초대 모달 닫기
+                closeInviteModal.addEventListener("click", () => {
+                    inviteModal.classList.add("hidden");
+                });
+
+                // ✅ 유저 초대 요청
+                inviteUserBtns.forEach(btn => {
+                    btn.addEventListener("click", (e) => {
+                        const userId = e.target.dataset.userId;
+
+                        fetch(`/rooms/<%= roomId %>/invite`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ userId })
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    alert("User invited successfully!");
+                                    inviteModal.classList.add("hidden");
+                                    location.reload();  // ✅ 초대 후 새로고침
+                                } else {
+                                    alert("Error inviting user: " + data.error);
+                                }
+                            })
+                            .catch(err => console.error("❌ Invite error:", err));
+                    });
+                });
+            }
+
+            emojiButtons.forEach(btn => {
+                btn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    const messageId = e.target.dataset.messageId;
+
+                    // ✅ 이모지 선택창 위치 설정
+                    const rect = e.target.getBoundingClientRect();
+                    emojiPicker.style.left = `${rect.left + window.scrollX}px`;
+                    emojiPicker.style.top = `${rect.top + window.scrollY + 30}px`;
+                    emojiPicker.classList.remove("hidden");
+
+                    // ✅ 기존 리스너 제거 후 새로 추가 (중복 방지)
+                    document.querySelectorAll(".emoji-option").forEach(emojiBtn => {
+                        emojiBtn.removeEventListener("click", handleEmojiClick);
+                        emojiBtn.addEventListener("click", (event) => handleEmojiClick(event, messageId));
+                    });
+                });
+            });
+
+            function handleEmojiClick(e, messageId) {
+                e.preventDefault();
+                const selectedEmoji = e.target.dataset.emoji;
+
+                if (!selectedEmoji) {
+                    console.error("❌ Error: No emoji selected");
+                    return;
+                }
+
+                console.log(`🔹 Sending reaction: ${selectedEmoji} to message ID: ${messageId}`);
+
+                fetch(`/rooms/<%= roomId %>/messages/${messageId}/react`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },  // ✅ JSON 데이터를 올바르게 전송
+                    body: JSON.stringify({ emoji: selectedEmoji })
+                })
+                    .then(response => {
+                        if (!response.ok) throw new Error("Reaction failed");
+                        console.log("✅ Reaction added successfully");
+                        location.reload();  // ✅ 반응 추가 후 페이지 새로고침
+                    })
+                    .catch(err => console.error("❌ Error reacting to message:", err));
+            }
+
+            // ✅ 클릭 외부 감지 시 이모지 선택창 닫기
+            document.addEventListener("click", (e) => {
+                if (!e.target.closest(".emoji-btn") && !e.target.closest("#emoji-picker")) {
+                    emojiPicker.classList.add("hidden");
+                }
+            });
+        });
+    </script>
+
+
+</body>
+
+</html>

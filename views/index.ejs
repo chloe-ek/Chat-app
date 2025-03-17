@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Welcome</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-pink-50">
+    <%- include('partials/navbar') %>
+
+        <div class="container mx-auto p-8 text-center">
+            <h1 class="text-4xl font-bold text-pink-600 mb-4">Welcome to Chat App</h1>
+            <p class="text-lg text-gray-700">Join a chat room and start messaging with friends!</p>
+
+            <% if (!authenticated) { %>
+                <div class="mt-6 space-x-4">
+                    <a href="/login" class="bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600">Login</a>
+                    <a href="/signup" class="bg-pink-400 text-white px-6 py-3 rounded-lg hover:bg-pink-500">Sign Up</a>
+                </div>
+                <% } else { %>
+                    <div class="mt-6">
+                        <a href="/rooms" class="bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600">Go to
+                            Chat Rooms</a>
+                    </div>
+                    <% } %>
+        </div>
+</body>
+
+</html>

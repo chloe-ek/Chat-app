@@ -1,0 +1,12 @@
+<nav class="bg-pink-200 p-4 shadow-md flex justify-between items-center">
+    <a href="/" class="text-xl font-bold text-pink-600">Chat App</a>
+
+    <% if (authenticated) { %> <!-- 로그인 여부 확인 -->
+        <div class="flex items-center gap-4">
+            <span class="text-pink-700 font-semibold">Hello, <%= username %>!</span>
+            <a href="/logout" class="bg-pink-400 hover:bg-pink-500 text-white px-4 py-2 rounded-lg">Logout</a>
+        </div>
+        <% } else { %>
+            <a href="/login" class="bg-pink-400 hover:bg-pink-500 text-white px-4 py-2 rounded-lg">Login</a>
+            <% } %>
+</nav>
