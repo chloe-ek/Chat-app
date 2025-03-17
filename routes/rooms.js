@@ -65,11 +65,11 @@ router.get("/rooms", isAuthenticated, (req, res) => {
     });
 });
 
-
 // ✅ 특정 채팅방 메시지 로드
 router.get("/rooms/:roomId", isAuthenticated, (req, res) => {
   const roomId = req.params.roomId;
-  console.log("📌 Requested Room ID:", roomId); // ✅ 디버깅 로그 추가
+  console.log("📌 Requested Room ID:", roomId);
+  
   if (!roomId || isNaN(roomId)) {
     console.error("❌ Invalid roomId:", roomId);
     return res.redirect("/rooms?error=Invalid Room ID");
@@ -86,91 +86,119 @@ router.get("/rooms/:roomId", isAuthenticated, (req, res) => {
 
     const roomName = roomResult[0].name;
 
-    // ✅ 2. 특정 채팅방 메시지 가져오기
-    const query = `
-      SELECT 
-          m.message_id, 
-          m.text, 
-          m.sent_datetime, 
-          ru.user_id,
-          u.username,
-          IFNULL((
-              SELECT JSON_ARRAYAGG(
-                  JSON_OBJECT('emoji', sub.emoji_code, 'count', sub.count)
-              )
-              FROM (
-                  SELECT e.emoji_code, COUNT(*) AS count
-                  FROM message_reaction mr
-                  JOIN emoji e ON mr.emoji_id = e.emoji_id
-                  WHERE mr.message_id = m.message_id
-                  GROUP BY e.emoji_code
-              ) AS sub
-          ), '[]') AS reactions
-      FROM message m
-      JOIN room_user ru ON m.room_user_id = ru.room_user_id
-      JOIN user u ON ru.user_id = u.user_id
-      WHERE ru.room_id = ? 
-      ORDER BY m.sent_datetime ASC;
-    `;
+    // ✅ 2. 사용자의 마지막 읽은 메시지 ID 가져오기 (업데이트 전에 사용)
+    db.query(
+      "SELECT last_read_message_id FROM room_user WHERE room_id = ? AND user_id = ?",
+      [roomId, userId],
+      (err, lastReadResult) => {
+        if (err) {
+          console.error("❌ Error fetching last read message ID:", err);
+          return res.redirect("/rooms?error=Database error");
+        }
 
-    db.query(query, [roomId], (err, messages) => {
-      if (err) {
-        console.error("❌ Error fetching messages:", err);
-        return res.redirect("/rooms?error=Database error");
-      }
+        const lastReadMessageId = lastReadResult?.[0]?.last_read_message_id || 0;
+        console.log("📖 Last Read Message ID (Before Update):", lastReadMessageId);
 
-      const formattedMessages = messages.map(msg => ({
-        username: msg.username,
-        text: msg.text,
-        time: msg.sent_datetime 
-          ? new Date(msg.sent_datetime).toLocaleString("en-US", { timeZone: "America/Vancouver" }) 
-          : "No Timestamp",
-        isOwn: msg.user_id === userId,
-        message_id: msg.message_id,
-        reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
-      }));
-
-      // ✅ 3. 사용자의 마지막 읽은 메시지 ID 가져오기 & 업데이트
-      db.query(
-        "SELECT last_read_message_id FROM room_user WHERE room_id = ? AND user_id = ?",
-        [roomId, userId],
-        (err, lastReadResult) => {
-          const lastReadMessageId = lastReadResult?.[0]?.last_read_message_id || 0;
-
-          db.query(
-            "UPDATE room_user SET last_read_message_id = ? WHERE room_id = ? AND user_id = ?",
-            [lastReadMessageId, roomId, userId],
-            (err) => {
-              if (err) console.error("❌ Error updating last read message ID:", err);
+        // ✅ 3. 특정 채팅방의 최신 메시지 ID 가져오기
+        db.query(
+          "SELECT MAX(message_id) AS latest_message_id FROM message WHERE room_user_id IN (SELECT room_user_id FROM room_user WHERE room_id = ?)", 
+          [roomId], 
+          (err, latestMessageResult) => {
+            if (err) {
+              console.error("❌ Error fetching latest message ID:", err);
+              return res.redirect("/rooms?error=Database error");
             }
-          );
 
-          // ✅ 4. 방에 없는 유저 목록 가져오기 (초대할 수 있는 유저)
-          db.query(
-            "SELECT user_id, username FROM user WHERE user_id NOT IN (SELECT user_id FROM room_user WHERE room_id = ?)",
-            [roomId],
-            (err, availableUsers) => {
+            const latestMessageId = latestMessageResult[0]?.latest_message_id || 0;
+            console.log("🆕 Latest Message ID:", latestMessageId);
+
+            // ✅ 4. 특정 채팅방의 모든 메시지 가져오기
+            const query = `
+              SELECT 
+                  m.message_id, 
+                  m.text, 
+                  m.sent_datetime, 
+                  ru.user_id,
+                  u.username,
+                  IFNULL((
+                      SELECT JSON_ARRAYAGG(
+                          JSON_OBJECT('emoji', sub.emoji_code, 'count', sub.count)
+                      )
+                      FROM (
+                          SELECT e.emoji_code, COUNT(*) AS count
+                          FROM message_reaction mr
+                          JOIN emoji e ON mr.emoji_id = e.emoji_id
+                          WHERE mr.message_id = m.message_id
+                          GROUP BY e.emoji_code
+                      ) AS sub
+                  ), '[]') AS reactions
+              FROM message m
+              JOIN room_user ru ON m.room_user_id = ru.room_user_id
+              JOIN user u ON ru.user_id = u.user_id
+              WHERE ru.room_id = ? 
+              ORDER BY m.sent_datetime ASC;
+            `;
+
+            db.query(query, [roomId], (err, messages) => {
               if (err) {
-                console.error("❌ Error fetching available users:", err);
+                console.error("❌ Error fetching messages:", err);
                 return res.redirect("/rooms?error=Database error");
               }
 
-              console.log("📌 Available Users:", availableUsers || []);
+              console.log("📩 Total Messages Fetched:", messages.length);
 
-              res.render("chat", {
-                roomId,
-                roomName,
-                messages: formattedMessages,
-                lastReadMessageId,
-                availableUsers: availableUsers || [],
-              });
-            }
-          );
-        }
-      );
-    });
+              const formattedMessages = messages.map(msg => ({
+                username: msg.username,
+                text: msg.text,
+                time: msg.sent_datetime 
+                  ? new Date(msg.sent_datetime).toLocaleString("en-US", { timeZone: "America/Vancouver" }) 
+                  : "No Timestamp",
+                isOwn: msg.user_id === userId,
+                message_id: msg.message_id,
+                reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
+              }));
+
+              // ✅ 5. 방에 없는 유저 목록 가져오기 (초대할 수 있는 유저)
+              db.query(
+                "SELECT user_id, username FROM user WHERE user_id NOT IN (SELECT user_id FROM room_user WHERE room_id = ?)",
+                [roomId],
+                (err, availableUsers) => {
+                  if (err) {
+                    console.error("❌ Error fetching available users:", err);
+                    return res.redirect("/rooms?error=Database error");
+                  }
+
+                  console.log("📌 Available Users:", availableUsers || []);
+
+                  // ✅ 6. 채팅방 페이지 렌더링 (업데이트 전에 기존 `lastReadMessageId` 사용)
+                  res.render("chat", {
+                    roomId,
+                    roomName,
+                    messages: formattedMessages,
+                    lastReadMessageId,  // ✅ 기존 lastReadMessageId 유지
+                    availableUsers: availableUsers || [],
+                    userId,
+                  });
+
+                  // ✅ 7. 마지막 읽은 메시지 ID 업데이트 (렌더링 후)
+                  db.query(
+                    "UPDATE room_user SET last_read_message_id = ? WHERE room_id = ? AND user_id = ?",
+                    [latestMessageId, roomId, userId],
+                    (err) => {
+                      if (err) console.error("❌ Error updating last read message ID:", err);
+                      console.log("✅ Updated Last Read Message ID:", latestMessageId);
+                    }
+                  );
+                }
+              );
+            });
+          }
+        );
+      }
+    );
   });
 });
+
 
 router.post("/rooms/:roomId/invite", isAuthenticated, (req, res) => {
     const roomId = req.params.roomId;
