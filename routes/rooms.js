@@ -9,6 +9,20 @@ function isAuthenticated(req, res, next) {
   next();
 }
 
+// 🔹 "Create Group" 페이지 렌더링 (여기에서 users와 userId 전달)
+router.get("/rooms/new", isAuthenticated, (req, res) => {
+  const userId = req.session.userId;  // ✅ 현재 로그인한 사용자의 ID 가져오기
+
+  db.query("SELECT user_id, username FROM user", (err, results) => {
+    if (err) {
+      console.error("Error fetching users:", err);
+      return res.redirect("/rooms?error=Database error");
+    }
+
+    res.render("new-room", { users: results, userId });  // ✅ userId를 EJS로 전달
+  });
+});
+
 // 🔹 채팅방 목록 페이지
 router.get("/rooms", isAuthenticated, (req, res) => {
     const userId = req.session.userId;
@@ -191,24 +205,6 @@ router.post("/rooms/:roomId/invite", isAuthenticated, (req, res) => {
             );
         }
     );
-});
-
-
-
-
-
-// 🔹 "Create Group" 페이지 렌더링 (여기에서 users와 userId 전달)
-router.get("/rooms/new", isAuthenticated, (req, res) => {
-  const userId = req.session.userId;  // ✅ 현재 로그인한 사용자의 ID 가져오기
-
-  db.query("SELECT user_id, username FROM user", (err, results) => {
-    if (err) {
-      console.error("Error fetching users:", err);
-      return res.redirect("/rooms?error=Database error");
-    }
-
-    res.render("new-room", { users: results, userId });  // ✅ userId를 EJS로 전달
-  });
 });
 
 
