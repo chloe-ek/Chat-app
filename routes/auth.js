@@ -20,13 +20,13 @@ router.post("/signup", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const query = `INSERT INTO user (email, username, password_hash) VALUES (?, ?, ?)`;
     
-    db.query(query, [email, username, hashedPassword], (err) => {
+    db.query(query, [email, username, hashedPassword], (err, result) => {
       if (err) {
         console.error("MySQL Insert Error:", err);
         return res.redirect("/signup?error=Database error");
       }
 
-      req.session.user = { id: user.user_id, username: user.username };
+      req.session.user = { id: result.insertId, username };
       req.session.save(() => res.redirect("/rooms"));
 
     });
